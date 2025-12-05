@@ -9,12 +9,12 @@ use Illuminate\Database\Schema\Builder;
 class DmBuilder extends Builder
 {
     /**
-     * @var \Yajra\Oci8\Schema\OracleAutoIncrementHelper
+     * @var \LaravelDm8\Dm8\Schema\DmAutoIncrementHelper
      */
     public $helper;
 
     /**
-     * @var \Yajra\Oci8\Schema\Comment
+     * @var \LaravelDm8\Dm8\Schema\Comment
      */
     public $comment;
 
@@ -24,7 +24,7 @@ class DmBuilder extends Builder
     public function __construct(Connection $connection)
     {
         parent::__construct($connection);
-        $this->helper = new OracleAutoIncrementHelper($connection);
+        $this->helper = new DmAutoIncrementHelper($connection);
         $this->comment = new Comment($connection);
     }
 
@@ -59,7 +59,7 @@ class DmBuilder extends Builder
      */
     protected function createBlueprint($table, Closure $callback = null)
     {
-        $blueprint = new OracleBlueprint($table, $callback);
+        $blueprint = new DmBlueprint($table, $callback);
         $blueprint->setTablePrefix($this->connection->getTablePrefix());
 
         return $blueprint;

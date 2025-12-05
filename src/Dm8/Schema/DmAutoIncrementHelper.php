@@ -13,12 +13,12 @@ class DmAutoIncrementHelper
     protected $connection;
 
     /**
-     * @var \Yajra\Oci8\Schema\Trigger
+     * @var \LaravelDm8\Dm8\Schema\Trigger
      */
     protected $trigger;
 
     /**
-     * @var \Yajra\Oci8\Schema\Sequence
+     * @var \LaravelDm8\Dm8\Schema\Sequence
      */
     protected $sequence;
 
