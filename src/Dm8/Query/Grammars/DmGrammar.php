@@ -82,51 +82,11 @@ class DmGrammar extends Grammar
             // 提取内部查询
             if (preg_match('/select \* from \((.*?)\) where rownum = 1$/is', $original, $matches)) {
                 // 转换为达梦兼容的语法
-                $sql = 'select * from (' . $matches[1] . ') where rownum = 1';
+                return 'select * from (' . $matches[1] . ') where rownum = 1';
             }
-        } else {
-            $sql = $original;
         }
         
-        // 修复多态关联查询问题
-        return $this->fixMorphRelationQuery($sql);
-    }
-    
-    /**
-     * 修复多态关联查询问题
-     * 解决达梦数据库多态关联中的三个问题：
-     * 1. 缺少单引号包裹
-     * 2. 多余转义符号
-     * 3. WHERE条件子句逻辑错误
-     *
-     * @param  string  $sql
-     * @return string
-     */
-    protected function fixMorphRelationQuery($sql)
-    {
-        // 匹配多态关联查询的模式
-        $pattern = '/where\s+(.+?)\.model_id\s+in\s+\((App\\\\Models\\\\\w+)\)\s+and\s+(.+?)\.model_type\s+=\s+(\d+)/i';
-        
-        if (preg_match($pattern, $sql, $matches)) {
-            // 提取匹配的内容
-            $fullMatch = $matches[0];
-            $tablePrefix = $matches[1];
-            $modelClass = $matches[2];
-            $tablePrefix2 = $matches[3];
-            $modelId = $matches[4];
-            
-            // 修复转义符号和添加单引号
-            $fixedModelClass = str_replace('\\\\', '\\', $modelClass);
-            $fixedModelClass = "'{$fixedModelClass}'";
-            
-            // 构建正确的WHERE子句
-            $fixedWhere = "where {$tablePrefix}.model_id = {$modelId} and {$tablePrefix2}.model_type in ({$fixedModelClass})";
-            
-            // 替换原WHERE子句
-            $sql = str_replace($fullMatch, $fixedWhere, $sql);
-        }
-        
-        return $sql;
+        return $original;
     }
 
     /**
