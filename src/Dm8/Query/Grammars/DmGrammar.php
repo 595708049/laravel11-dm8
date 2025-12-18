@@ -565,18 +565,10 @@ class DmGrammar extends Grammar
      * @param  array  $where
      * @return string
      */
-    public function whereNotInRaw($query, $where)
+    protected function whereNotInRaw($query, $where)
     {
         if (! empty($where['values'])) {
-            $values = is_array($where['values']) ? $where['values'] : [$where['values']];
-            
-            if (count($values) > 1000) {
-                return $this->resolveClause($where['column'], $values, 'not in');
-            } else {
-                $placeholders = $this->parameterize($values);
-                $query->addBinding($values, 'where');
-                return $this->wrap($where['column']).' not in ('.$placeholders.')';
-            }
+            return $this->wrap($where['column']).' not in ('.implode(', ', $where['values']).')';
         }
 
         return '1 = 1';
@@ -591,18 +583,10 @@ class DmGrammar extends Grammar
      * @param  array  $where
      * @return string
      */
-    public function whereInRaw($query, $where)
+    protected function whereInRaw($query, $where)
     {
         if (! empty($where['values'])) {
-            $values = is_array($where['values']) ? $where['values'] : [$where['values']];
-            
-            if (count($values) > 1000) {
-                return $this->resolveClause($where['column'], $values, 'in');
-            } else {
-                $placeholders = $this->parameterize($values);
-                $query->addBinding($values, 'where');
-                return $this->wrap($where['column']).' in ('.$placeholders.')';
-            }
+            return $this->wrap($where['column']).' in ('.implode(', ', $where['values']).')';
         }
 
         return '0 = 1';
@@ -622,8 +606,7 @@ class DmGrammar extends Grammar
                 $type = ' or '.$baseType.' ';
             }
             
-            $placeholders = $this->parameterize($ch);
-            $whereClause .= $type.'('.$placeholders.')';
+            $whereClause .= $type.'('.implode(', ', $ch).')';
             $i++;
         }
 
