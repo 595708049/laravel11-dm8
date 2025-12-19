@@ -90,17 +90,12 @@ class Dm8Connection extends Connection
      */
     public function setSessionVars(array $sessionVars): static
     {
-        $vars = [];
         foreach ($sessionVars as $option => $value) {
             if (strtoupper($option) == 'CURRENT_SCHEMA' || strtoupper($option) == 'EDITION') {
-                $vars[] = "$option  = $value";
+                $sql = "ALTER SESSION SET $option = $value";
             } else {
-                $vars[] = "$option  = '$value'";
+                $sql = "ALTER SESSION SET $option = '$value'";
             }
-        }
-
-        if ($vars) {
-            $sql = 'ALTER SESSION SET '.implode(' ', $vars);
             $this->statement($sql);
         }
 
@@ -454,7 +449,8 @@ class Dm8Connection extends Connection
      */
     public function useCaseInsensitiveSession(): static
     {
-        return $this->setSessionVars(['NLS_COMP' => 'LINGUISTIC', 'NLS_SORT' => 'BINARY_CI']);
+        // 达梦数据库不支持NLS_COMP和NLS_SORT会话变量，直接返回
+        return $this;
     }
 
     /**
@@ -464,7 +460,8 @@ class Dm8Connection extends Connection
      */
     public function useCaseSensitiveSession(): static
     {
-        return $this->setSessionVars(['NLS_COMP' => 'BINARY', 'NLS_SORT' => 'BINARY']);
+        // 达梦数据库不支持NLS_COMP和NLS_SORT会话变量，直接返回
+        return $this;
     }
 
     /**
