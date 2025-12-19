@@ -200,7 +200,19 @@ class DmGrammar extends Grammar
             return (string) $value;
         }
         
-        // 移除引号包裹，达梦数据库表名和列名不需要引号
+        // 处理原始字符串值，检查是否为保留字
+        $originalValue = $value;
+        if (is_string($value) && !str_contains($value, ' as ')) {
+            $parts = explode('.', $value);
+            $lastPart = end($parts);
+            // 检查最后一部分是否为保留字
+            if (in_array(strtoupper($lastPart), $this->reserves)) {
+                // 保留字需要加引号，使用 parent::wrap 处理
+                return parent::wrap($value, $prefixAlias);
+            }
+        }
+        
+        // 非保留字移除引号包裹
         $wrapped = parent::wrap($value, $prefixAlias);
         
         // 移除所有双引号，处理带有表前缀的列名情况
@@ -264,6 +276,7 @@ class DmGrammar extends Grammar
         if (str_starts_with($value, '"') && str_ends_with($value, '"')) {
             return $value;
         }
+
         return '"' . str_replace('"', '""', $value) . '"';
     }
     
