@@ -257,11 +257,14 @@ class DmGrammar extends Grammar
      */
     protected function wrapValue($value)
     {
-        if ($value === '*') {
+        if ($value === '*' || is_numeric($value) || $value === null) {
             return $value;
         }
-
-        return '"'.str_replace('"', '""', $value).'"';
+        // 已经带引号的不再二次包裹
+        if (str_starts_with($value, '"') && str_ends_with($value, '"')) {
+            return $value;
+        }
+        return '"' . str_replace('"', '""', $value) . '"';
     }
     
     /**
