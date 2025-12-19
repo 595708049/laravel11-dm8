@@ -1,4 +1,4 @@
-本项目基于 jackfinal/laravel-dm8 构建，并针对 Laravel10，Laravel11 进行了适配与改进。
+本项目基于 jackfinal/laravel-dm8 构建，并针对 LaraveL11 进行了适配与改进。
 - 源项目GitHub: https://github.com/Jackfinal/laravel-dm8.git
 
 # DM DB driver for Laravel via DM8
@@ -16,7 +16,6 @@ Laravel-DM8 is an Dm Database Driver package for [Laravel](http://laravel.com/).
 
  Laravel  | Package
 :---------|:----------
- 10.x.x   | 1.x.x
  11.x.x   | 1.x.x
 
 ## Quick Installation
