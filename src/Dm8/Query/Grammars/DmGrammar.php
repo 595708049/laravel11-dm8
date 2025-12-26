@@ -58,10 +58,17 @@ class DmGrammar extends Grammar
     {
         $q = clone $query;
         $q->columns = [];
-        $q->selectRaw('1 as "exists"')
+        
+        // 先编译查询，然后手动替换exists为带引号的版本
+        $q->select('1 as exists')
           ->whereRaw('rownum = 1');
 
-        return $this->compileSelect($q);
+        $sql = $this->compileSelect($q);
+        
+        // 手动将 '1 as exists' 替换为 '1 as "exists"'
+        $sql = preg_replace('/1 as exists/', '1 as "exists"', $sql);
+        
+        return $sql;
     }
 
     /**
@@ -200,23 +207,36 @@ class DmGrammar extends Grammar
             return (string) $value;
         }
         
-        // 处理原始字符串值，检查是否为保留字
         $originalValue = $value;
-        if (is_string($value) && !str_contains($value, ' as ')) {
+        $isReservedWord = false;
+        
+        // 检查是否为带别名的表达式
+        if (is_string($value) && str_contains($value, ' as ')) {
+            // 分离列名和别名
+            list($column, $alias) = explode(' as ', $value);
+            // 检查别名是否为保留字
+            if (in_array(strtoupper(trim($alias)), $this->reserves)) {
+                $isReservedWord = true;
+            }
+        } elseif (is_string($value)) {
+            // 处理普通列名，检查是否为保留字
             $parts = explode('.', $value);
             $lastPart = end($parts);
-            // 检查最后一部分是否为保留字
             if (in_array(strtoupper($lastPart), $this->reserves)) {
-                // 保留字需要加引号，使用 parent::wrap 处理
-                return parent::wrap($value, $prefixAlias);
+                $isReservedWord = true;
             }
         }
         
-        // 非保留字移除引号包裹
+        // 调用父类的wrap方法
         $wrapped = parent::wrap($value, $prefixAlias);
         
-        // 移除所有双引号，处理带有表前缀的列名情况
-        return str_replace('"', '', $wrapped);
+        // 如果是保留字，保留引号；否则移除引号
+        if ($isReservedWord) {
+            return $wrapped;
+        } else {
+            // 非保留字移除引号包裹
+            return str_replace('"', '', $wrapped);
+        }
     }
 
     /**
