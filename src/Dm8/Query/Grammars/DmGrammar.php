@@ -207,36 +207,11 @@ class DmGrammar extends Grammar
             return (string) $value;
         }
         
-        $originalValue = $value;
-        $isReservedWord = false;
-        
-        // 检查是否为带别名的表达式
-        if (is_string($value) && str_contains($value, ' as ')) {
-            // 分离列名和别名
-            list($column, $alias) = explode(' as ', $value);
-            // 检查别名是否为保留字
-            if (in_array(strtoupper(trim($alias)), $this->reserves)) {
-                $isReservedWord = true;
-            }
-        } elseif (is_string($value)) {
-            // 处理普通列名，检查是否为保留字
-            $parts = explode('.', $value);
-            $lastPart = end($parts);
-            if (in_array(strtoupper($lastPart), $this->reserves)) {
-                $isReservedWord = true;
-            }
-        }
-        
         // 调用父类的wrap方法
         $wrapped = parent::wrap($value, $prefixAlias);
         
-        // 如果是保留字，保留引号；否则移除引号
-        if ($isReservedWord) {
-            return $wrapped;
-        } else {
-            // 非保留字移除引号包裹
-            return str_replace('"', '', $wrapped);
-        }
+        // 移除所有引号包裹，达梦数据库不推荐使用引号包裹列名
+        return str_replace('"', '', $wrapped);
     }
 
     /**
