@@ -40,6 +40,15 @@ class DmProcessor extends Processor
                             $value = utf8_encode($value);
                         }
                     }
+                } else if (is_bool($value)) {
+                    // 将布尔值转换为整数
+                    $value = (int) $value;
+                } else if (is_null($value)) {
+                    // 将 null 值转换为空字符串
+                    $value = '';
+                } else if (!is_string($value) && !is_int($value)) {
+                    // 将其他类型的值转换为字符串
+                    $value = (string) $value;
                 }
                 
                 // 将键名转换为小写

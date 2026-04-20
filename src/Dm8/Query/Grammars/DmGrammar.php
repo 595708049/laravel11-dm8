@@ -228,12 +228,29 @@ class DmGrammar extends Grammar
 
         // 处理别名
         if (strpos(strtolower((string) $table), ' as ') !== false) {
-            list($tableName, $alias) = explode(' as ', strtolower((string) $table));
-            return $this->wrap($this->tablePrefix.$tableName).' '.$alias;
+            $segments = preg_split('/\s+as\s+/i', $table);
+            return $this->wrapTable($segments[0]).' as '.$this->wrapValue($this->tablePrefix.$segments[1]);
+        }
+        
+        // 处理子查询别名，移除模式名前缀
+        // 例如：XGFZ.XGFZ_latestOfMany -> latestOfMany
+        if (strpos((string) $table, 'latestOfMany') !== false) {
+            // 提取最后一个部分作为别名
+            $parts = explode('.', (string) $table);
+            $lastPart = end($parts);
+            
+            // 移除可能的模式名前缀
+            $aliasParts = explode('_', $lastPart);
+            if (count($aliasParts) > 1 && end($aliasParts) === 'latestOfMany') {
+                return 'latestOfMany';
+            }
+            
+            return $lastPart;
         }
         
         // 直接返回表名，不添加引号
-        return $this->getSchemaPrefix().$this->tablePrefix.$table;
+        // 注意：这里不添加模式名前缀，因为别名不应该包含模式名
+        return $this->tablePrefix.$table;
     }
 
     /**
@@ -272,7 +289,8 @@ class DmGrammar extends Grammar
             return $value;
         }
 
-        return '"' . str_replace('"', '""', $value) . '"';
+        // 达梦数据库不推荐使用引号包裹别名
+        return $value;
     }
     
     /**
