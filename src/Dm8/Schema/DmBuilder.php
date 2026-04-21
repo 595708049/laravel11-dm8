@@ -145,6 +145,70 @@ class DmBuilder extends Builder
     }
 
     /**
+     * Determine if the given table has a given column.
+     *
+     * @param  string  $table
+     * @param  string  $column
+     * @return bool
+     */
+    public function hasColumn($table, $column)
+    {
+        // 1) 先走原有逻辑（不改变现有行为）
+        $columns = array_map('strtolower', $this->getColumnListing($table));
+        if (in_array(strtolower($column), $columns, true)) {
+            return true;
+        }
+
+        // 2) 原逻辑失败时，达梦兜底（仅附加，不破坏旧路径）
+        $schema = $this->connection->getConfig('prefix_schema') ?: $this->connection->getConfig('username');
+        $tableName = $table;
+
+        if (strpos($table, '.') !== false) {
+            [$schemaPart, $tablePart] = explode('.', $table, 2);
+            $schema = $schemaPart;
+            $tableName = $tablePart;
+        }
+
+        $tableWithPrefix = $this->connection->getTablePrefix().$tableName;
+
+        $sql = 'SELECT 1
+                FROM ALL_TAB_COLUMNS
+                WHERE UPPER(OWNER) = UPPER(?)
+                AND UPPER(TABLE_NAME) = UPPER(?)
+                AND UPPER(COLUMN_NAME) = UPPER(?)
+                FETCH FIRST 1 ROWS ONLY';
+
+        // 2.1 带前缀表名
+        $rows = $this->connection->select($sql, [$schema, $tableWithPrefix, $column]);
+        if (!empty($rows)) {
+            return true;
+        }
+
+        // 2.2 无前缀表名
+        $rows = $this->connection->select($sql, [$schema, $tableName, $column]);
+        if (!empty($rows)) {
+            return true;
+        }
+
+        // 2.3 跨 schema 兜底（仅按表名+列名）
+        $sql2 = 'SELECT 1
+                FROM ALL_TAB_COLUMNS
+                WHERE UPPER(TABLE_NAME) = UPPER(?)
+                AND UPPER(COLUMN_NAME) = UPPER(?)
+                FETCH FIRST 1 ROWS ONLY';
+
+        $rows = $this->connection->select($sql2, [$tableWithPrefix, $column]);
+        if (!empty($rows)) {
+            return true;
+        }
+
+        $rows = $this->connection->select($sql2, [$tableName, $column]);
+        return !empty($rows);
+    }
+
+
+
+    /**
      * Get the column listing for a given table.
      *
      * @param  string  $table
@@ -152,12 +216,102 @@ class DmBuilder extends Builder
      */
     public function getColumnListing($table)
     {
-        $database = $this->connection->getConfig('username');
-        $table = $this->connection->getTablePrefix().$table;
-        /** @var \Yajra\Oci8\Schema\Grammars\OracleGrammar $grammar */
-        $grammar = $this->grammar;
-        $results = $this->connection->select($grammar->compileColumnExists($database, $table));
+        [$schema, $tableName] = $this->resolveSchemaAndTable($table);
 
-        return $this->connection->getPostProcessor()->processColumnListing($results);
+        $rows = $this->queryColumns($tableName, $schema);
+
+        // 去掉前缀重试，避免前缀与真实对象名不一致导致查不到
+        if (empty($rows)) {
+            $prefix = strtoupper((string) $this->connection->getTablePrefix());
+            if ($prefix !== '' && stripos($tableName, $prefix) === 0) {
+                $rawTableName = substr($tableName, strlen($prefix));
+                $rows = $this->queryColumns($rawTableName, $schema);
+
+                if (empty($rows)) {
+                    $rows = $this->queryColumns($rawTableName, null);
+                }
+            }
+        }
+
+        // 兜底：不带 owner 再查一次
+        if (empty($rows)) {
+            $rows = $this->queryColumns($tableName, null);
+        }
+
+        return $this->extractColumnNames($rows);
+    }
+
+    /**
+     * @param  string  $table
+     * @return array
+     */
+    protected function resolveSchemaAndTable($table)
+    {
+        $schema = $this->connection->getConfig('prefix_schema') ?: $this->connection->getConfig('username');
+
+        if (strpos($table, '.') !== false) {
+            [$schemaPart, $tablePart] = explode('.', $table, 2);
+            $schema = $schemaPart;
+            $table = $tablePart;
+        }
+
+        $tablePrefix = (string) $this->connection->getTablePrefix();
+
+        // 兼容把 schema 写在 prefix 里的配置（例如: XGFZ.XGFZ_）
+        if (strpos($tablePrefix, '.') !== false) {
+            [$prefixSchema, $prefixOnly] = explode('.', $tablePrefix, 2);
+
+            if (empty($this->connection->getConfig('prefix_schema')) && ! empty($prefixSchema)) {
+                $schema = $prefixSchema;
+            }
+
+            $tablePrefix = $prefixOnly;
+        }
+
+        if ($tablePrefix !== '' && stripos($table, $tablePrefix) !== 0) {
+            $table = $tablePrefix.$table;
+        }
+
+        return [strtoupper((string) $schema), strtoupper((string) $table)];
+    }
+
+    /**
+     * @param  string  $tableName
+     * @param  string|null  $owner
+     * @return array
+     */
+    protected function queryColumns($tableName, $owner = null)
+    {
+        if (! empty($owner)) {
+            $sql = 'SELECT COLUMN_NAME FROM ALL_TAB_COLUMNS WHERE UPPER(OWNER) = UPPER(?) AND UPPER(TABLE_NAME) = UPPER(?) ORDER BY COLUMN_ID';
+
+            return $this->connection->select($sql, [$owner, $tableName]);
+        }
+
+        $sql = 'SELECT COLUMN_NAME FROM ALL_TAB_COLUMNS WHERE UPPER(TABLE_NAME) = UPPER(?) ORDER BY COLUMN_ID';
+
+        return $this->connection->select($sql, [$tableName]);
+    }
+
+    /**
+     * @param  array  $rows
+     * @return array
+     */
+    protected function extractColumnNames(array $rows)
+    {
+        $columns = [];
+
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $columns[] = $row['COLUMN_NAME'] ?? $row['column_name'] ?? null;
+            } else {
+                $columns[] = $row->COLUMN_NAME ?? $row->column_name ?? null;
+            }
+        }
+
+        return array_values(array_filter($columns, function ($value) {
+            return $value !== null && $value !== '';
+        }));
     }
 }
+
