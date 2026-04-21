@@ -303,15 +303,18 @@ class DmBuilder extends Builder
 
         foreach ($rows as $row) {
             if (is_array($row)) {
-                $columns[] = $row['COLUMN_NAME'] ?? $row['column_name'] ?? null;
+                $columnName = $row['COLUMN_NAME'] ?? $row['column_name'] ?? null;
             } else {
-                $columns[] = $row->COLUMN_NAME ?? $row->column_name ?? null;
+                $columnName = $row->COLUMN_NAME ?? $row->column_name ?? null;
+            }
+
+            // 转换为小写以匹配 PDO::CASE_LOWER 配置
+            if ($columnName !== null && $columnName !== '') {
+                $columns[] = strtolower($columnName);
             }
         }
 
-        return array_values(array_filter($columns, function ($value) {
-            return $value !== null && $value !== '';
-        }));
+        return array_values($columns);
     }
 }
 
