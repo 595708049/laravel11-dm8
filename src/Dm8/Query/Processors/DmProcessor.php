@@ -74,14 +74,47 @@ class DmProcessor extends Processor
     {
         $connection = $query->getConnection();
 
-        // 1) 执行插入
-        $connection->insert($sql, $this->normalizeBindings($values));
+        // 1. 执行插入（bindings 走 connection 统一处理）
+        $connection->insert($sql, $values);
 
-        // 2) 达梦取自增ID（按你包里原有策略二选一）
-        // 推荐：走 select + scalar，不手动 bindParam 长度
-        $id = $connection->scalar('SELECT @@IDENTITY');
+        // 2. 优先用 sequence（如果模型/调用传了）
+        if (!empty($sequence)) {
+            try {
+                $id = $connection->scalar("SELECT {$sequence}.currval");
+                if ($id !== null && $id !== '') {
+                    return is_numeric($id) ? (int)$id : $id;
+                }
+            } catch (\Throwable $e) {
+                // 不中断，继续走下一个策略
+            }
+        }
 
-        return is_numeric($id) ? (int) $id : $id;
+        // 3. 尝试达梦 identity
+        foreach ([
+            'SELECT @@IDENTITY',
+            'SELECT SCOPE_IDENTITY()',
+        ] as $identitySql) {
+            try {
+                $id = $connection->scalar($identitySql);
+                if ($id !== null && $id !== '') {
+                    return is_numeric($id) ? (int)$id : $id;
+                }
+            } catch (\Throwable $e) {
+                // continue
+            }
+        }
+
+        // 4. 最后兜底 PDO::lastInsertId
+        try {
+            $id = $connection->getPdo()->lastInsertId();
+            if ($id !== null && $id !== '') {
+                return is_numeric($id) ? (int)$id : $id;
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        return null;
     }
 
     protected function normalizeBindings(array $bindings): array

@@ -464,6 +464,30 @@ class Dm8Connection extends Connection
         return $this;
     }
 
+    public function prepareBindings(array $bindings)
+    {
+        $bindings = parent::prepareBindings($bindings);
+
+        foreach ($bindings as $key => $value) {
+            if (is_bool($value)) {
+                $bindings[$key] = $value ? 1 : 0;
+                continue;
+            }
+
+            // 避免 dm pdo 在 Linux 下出现 Invalid buffer length[0]
+            if ($value === '') {
+                $bindings[$key] = null;
+                continue;
+            }
+
+            if ($value instanceof \DateTimeInterface) {
+                $bindings[$key] = $value->format('Y-m-d H:i:s');
+            }
+        }
+
+        return $bindings;
+    }
+
     /**
      * Bind values to their parameters in the given statement.
      *
@@ -474,16 +498,18 @@ class Dm8Connection extends Connection
     public function bindValues($statement, $bindings)
     {
         foreach ($bindings as $key => $value) {
-            $type = PDO::PARAM_STR;
+            $param = is_string($key) ? $key : $key + 1;
+
             if (is_int($value)) {
-                $type = PDO::PARAM_INT;
-            } elseif (is_bool($value)) {
-                $type = PDO::PARAM_BOOL;
+                $type = \PDO::PARAM_INT;
             } elseif (is_null($value)) {
-                $type = PDO::PARAM_NULL;
+                $type = \PDO::PARAM_NULL;
+            } else {
+                $type = \PDO::PARAM_STR;
             }
-            
-            $statement->bindValue(is_string($key) ? $key : $key + 1, $value, $type);
+
+            // 关键：不用 bindParam + length，统一 bindValue
+            $statement->bindValue($param, $value, $type);
         }
     }
 
