@@ -663,14 +663,67 @@ class DmGrammar extends Grammar
     public function compilePaginate(Builder $query, $perPage, $columns, $pageName, $page)
     {
         $offset = ($page - 1) * $perPage;
-        
+
         // 使用达梦兼容的分页语法
         $sql = $this->compileSelect($query);
-        
+
         // 移除可能存在的嵌套
         $sql = preg_replace('/^\s*select\s+\*\s+from\s*\(\s*(select\s+.+?)\)\s*$/is', '$1', $sql);
-        
+
         // 添加分页
         return $sql . ' offset ' . $offset . ' rows fetch next ' . $perPage . ' rows only';
+    }
+
+    /**
+     * 编译 upsert 语句（使用达梦数据库的 MERGE INTO 语法）
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  array  $values
+     * @param  array  $uniqueBy
+     * @param  array  $update
+     * @return string
+     */
+    public function compileUpsert(Builder $query, array $values, array $uniqueBy, array $update)
+    {
+        $table = $this->wrapTable($query->from);
+
+        // 获取所有列名（保持顺序一致）
+        $columns = array_keys(reset($values));
+
+        // 构建源数据（使用 DUAL 表和占位符）
+        $sourceData = collect($values)->map(function ($record) use ($columns) {
+            $placeholders = collect($columns)->map(function ($column) use ($record) {
+                return $this->parameter($record[$column]) . ' as ' . $this->wrap($column);
+            })->implode(', ');
+
+            return 'select ' . $placeholders . ' from dual';
+        })->implode(' union all ');
+
+        // 构建 ON 条件（匹配条件）
+        $on = collect($uniqueBy)->map(function ($column) use ($table) {
+            return $table . '.' . $this->wrap($column) . ' = source.' . $this->wrap($column);
+        })->implode(' and ');
+
+        // 构建 UPDATE 子句
+        $updateColumns = collect($update)->map(function ($value, $key) {
+            if (!is_numeric($key)) {
+                return $this->wrap($key) . ' = ' . $this->parameter($value);
+            }
+            return $this->wrap($value) . ' = source.' . $this->wrap($value);
+        })->implode(', ');
+
+        // 构建 INSERT 子句
+        $insertColumns = collect($columns)->map(function ($column) {
+            return $this->wrap($column);
+        })->implode(', ');
+
+        $insertValues = collect($columns)->map(function ($column) {
+            return 'source.' . $this->wrap($column);
+        })->implode(', ');
+
+        // 组装完整的 MERGE INTO 语句
+        return "merge into {$table} using ({$sourceData}) source on ({$on}) " .
+               "when matched then update set {$updateColumns} " .
+               "when not matched then insert ({$insertColumns}) values ({$insertValues})";
     }
 }
