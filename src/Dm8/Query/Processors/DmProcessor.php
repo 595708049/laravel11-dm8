@@ -74,20 +74,36 @@ class DmProcessor extends Processor
     {
         $connection = $query->getConnection();
 
-        $connection->recordsHaveBeenModified();
-        $start = microtime(true);
+        // 1) 执行插入
+        $connection->insert($sql, $this->normalizeBindings($values));
 
-        $id = 0;
-        $parameter = 1;
-        $statement = $this->prepareStatement($query, $sql);
-        $values = $this->incrementBySequence($values, $sequence);
-        $parameter = $this->bindValues($values, $statement, $parameter);
-        $statement->bindParam($parameter, $id, PDO::PARAM_INT, -1);
-        $statement->execute();
+        // 2) 达梦取自增ID（按你包里原有策略二选一）
+        // 推荐：走 select + scalar，不手动 bindParam 长度
+        $id = $connection->scalar('SELECT @@IDENTITY');
 
-        $connection->logQuery($sql, $values, $start);
+        return is_numeric($id) ? (int) $id : $id;
+    }
 
-        return (int) $id;
+    protected function normalizeBindings(array $bindings): array
+    {
+        foreach ($bindings as $k => $v) {
+            if (is_bool($v)) {
+                $bindings[$k] = $v ? 1 : 0;
+                continue;
+            }
+
+            if ($v instanceof \DateTimeInterface) {
+                $bindings[$k] = $v->format('Y-m-d H:i:s');
+                continue;
+            }
+
+            // 避免 Linux 下空串导致的长度/类型异常
+            if ($v === '') {
+                $bindings[$k] = null;
+            }
+        }
+
+        return $bindings;
     }
 
     /**
